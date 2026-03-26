@@ -2,6 +2,8 @@
 
 A GUI Modbus TCP simulator with support for multiple slaves simultaneously. Allows real-time editing of registers (Holding, Input, Coils, Discrete Inputs) and saving/loading configuration to a JSON file.
 
+![modbus-devices-simulator](screen.png)
+
 ## Requirements
 
 - Python 3.13+
@@ -11,8 +13,6 @@ A GUI Modbus TCP simulator with support for multiple slaves simultaneously. Allo
 ## First run
 
 ```bash
-cd ~/projects/modbus/modbus-devices-simulator
-
 # Create virtual environment
 python3 -m venv .venv
 
@@ -23,21 +23,30 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## Translations
+
+The UI language is detected automatically from the system locale. A compiled translation file for Polish is included. To recompile after editing `translations/pl_PL.ts`:
+
+```bash
+pyside6-lrelease translations/pl_PL.ts -qm translations/pl_PL.qm
+```
+
+To add a new language, create `translations/<locale>.ts` and compile it the same way.
+
 ## Running
 
 ```bash
-cd ~/projects/modbus/modbus-devices-simulator
 source .venv/bin/activate
 
 # Default config (config.json in the script directory)
 python modbus_gui.py
 
-# Alternative config (preset from devices directory)
-python modbus_gui.py --config ../devices/diy-driveway-controller/simulator-preset.json
+# Alternative config (preset)
+python modbus_gui.py --config path/to/preset.json
 
 # Debug mode — every Modbus request logged to terminal
 python modbus_gui.py --debug
-python modbus_gui.py --config ../devices/diy-driveway-controller/simulator-preset.json --debug
+python modbus_gui.py --config path/to/preset.json --debug
 ```
 
 On startup, the terminal will show which config file is being used:

@@ -6,7 +6,6 @@ Modbus Multi-Slave GUI Simulator
 - PySide6 GUI: add/remove slaves, edit Holding/Input/Coils
 - Autorefresh both directions (GUI -> server, server -> GUI)
 - Save/load JSON config
-Author: ChatGPT (adapted for user's request)
 """
 
 import sys
@@ -25,8 +24,10 @@ try:
     from pyModbusTCP.server import ModbusServer, DataHandler
     from pyModbusTCP.constants import EXP_NONE
 except Exception as e:
-    raise RuntimeError("Brak biblioteki pyModbusTCP lub nie można zaimportować wymaganych klas. "
-                       "Zainstaluj pyModbusTCP: pip install pyModbusTCP\nOrig error: " + str(e))
+    raise RuntimeError(
+        "pyModbusTCP library not found or required classes cannot be imported. "
+        "Install it with: pip install pyModbusTCP\nOriginal error: " + str(e)
+    )
 
 
 SYNC_TO_SERVER_MS = 200
@@ -49,6 +50,7 @@ class InputRegister:
 class Coil:
     addr: int
     value: bool
+
 
 @dataclass
 class DescreteInput:
@@ -152,7 +154,6 @@ class MultiSlaveHandler(DataHandler):
         self._log(f"read_discrete_inputs    slave={sid} addr={address} count={count} -> {result}")
         return DataHandler.Return(exp_code=EXP_NONE, data=result)
 
-
     # Utility for GUI/serialization
     def set_holding(self, slave_id: int, addr: int, value: int):
         self.ensure_slave(slave_id)
@@ -190,10 +191,10 @@ class MultiSlaveHandler(DataHandler):
             out = {}
             for sid, blocks in self.slaves.items():
                 out[sid] = {
-                    "holding": [{ "addr": a, "value": v } for a, v in sorted(blocks["holding"].items())],
-                    "input":   [{ "addr": a, "value": v } for a, v in sorted(blocks["input"].items())],
-                    "coils":   [{ "addr": a, "value": bool(v) } for a, v in sorted(blocks["coils"].items())],
-                    "descrete_inputs":   [{ "addr": a, "value": bool(v) } for a, v in sorted(blocks["descrete_inputs"].items())],
+                    "holding": [{"addr": a, "value": v} for a, v in sorted(blocks["holding"].items())],
+                    "input":   [{"addr": a, "value": v} for a, v in sorted(blocks["input"].items())],
+                    "coils":   [{"addr": a, "value": bool(v)} for a, v in sorted(blocks["coils"].items())],
+                    "descrete_inputs": [{"addr": a, "value": bool(v)} for a, v in sorted(blocks["descrete_inputs"].items())],
                 }
             return out
 
@@ -227,8 +228,8 @@ class RegistersTable(QtWidgets.QWidget):
         self.layout.addWidget(self.table)
 
         btn_layout = QtWidgets.QHBoxLayout()
-        self.btn_add = QtWidgets.QPushButton("Dodaj")
-        self.btn_remove = QtWidgets.QPushButton("Usuń zaznaczone")
+        self.btn_add = QtWidgets.QPushButton(self.tr("Add"))
+        self.btn_remove = QtWidgets.QPushButton(self.tr("Remove selected"))
         btn_layout.addWidget(self.btn_add)
         btn_layout.addWidget(self.btn_remove)
         btn_layout.addStretch()
@@ -239,10 +240,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, config_path: str, debug: bool = False):
         super().__init__()
         self.config_path = config_path
-        self.setWindowTitle("Modbus Devices Simulator")
-
+        self.setWindowTitle(self.tr("Modbus Devices Simulator"))
 
         self.resize(1000, 640)
+        self._dirty = False
 
         # Model / Server handler
         self.handler = MultiSlaveHandler(debug=debug)
@@ -257,10 +258,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(central)
 
         # Left: slave list and controls
-        left_col = QtWidgets.QVBoxLayout()
-        main_layout.addLayout(left_col, 2)
+        left_widget = QtWidgets.QWidget()
+        left_widget.setMaximumWidth(320)
+        left_col = QtWidgets.QVBoxLayout(left_widget)
+        main_layout.addWidget(left_widget, 2)
 
-        left_col.addWidget(QtWidgets.QLabel("Slave'y (ID):"))
+        left_col.addWidget(QtWidgets.QLabel(self.tr("Slaves (ID):")))
         self.slave_list = QtWidgets.QListWidget()
         left_col.addWidget(self.slave_list, 1)
 
@@ -268,15 +271,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.input_new_slave = QtWidgets.QSpinBox()
         self.input_new_slave.setRange(0, 247)
         self.input_new_slave.setValue(1)
-        self.btn_add_slave = QtWidgets.QPushButton("Dodaj slave")
-        self.btn_remove_slave = QtWidgets.QPushButton("Usuń wybrany")
+        self.btn_add_slave = QtWidgets.QPushButton(self.tr("Add slave"))
+        self.btn_remove_slave = QtWidgets.QPushButton(self.tr("Remove selected"))
         sl_ctrls.addWidget(self.input_new_slave)
         sl_ctrls.addWidget(self.btn_add_slave)
         sl_ctrls.addWidget(self.btn_remove_slave)
         left_col.addLayout(sl_ctrls)
 
         left_col.addSpacing(10)
-        left_col.addWidget(QtWidgets.QLabel("Konfiguracja serwera:"))
+        left_col.addWidget(QtWidgets.QLabel(self.tr("Server configuration:")))
         srv_layout = QtWidgets.QHBoxLayout()
         srv_layout.addWidget(QtWidgets.QLabel("Host:"))
         self.input_host = QtWidgets.QLineEdit("0.0.0.0")
@@ -291,52 +294,48 @@ class MainWindow(QtWidgets.QMainWindow):
         left_col.addLayout(srv_layout)
 
         srv_btns = QtWidgets.QHBoxLayout()
-        self.btn_start = QtWidgets.QPushButton("Start servera")
-        self.btn_stop = QtWidgets.QPushButton("Stop")
+        self.btn_start = QtWidgets.QPushButton(self.tr("Start server"))
+        self.btn_stop = QtWidgets.QPushButton(self.tr("Stop"))
         self.btn_stop.setEnabled(False)
         srv_btns.addWidget(self.btn_start)
         srv_btns.addWidget(self.btn_stop)
         left_col.addLayout(srv_btns)
 
         left_col.addSpacing(10)
-        left_col.addWidget(QtWidgets.QLabel("Plik konfiguracji:"))
+        left_col.addWidget(QtWidgets.QLabel(self.tr("Config file:")))
         cfg_btns = QtWidgets.QHBoxLayout()
-        self.btn_save = QtWidgets.QPushButton("Zapisz")
-        self.btn_load = QtWidgets.QPushButton("Wczytaj")
+        self.btn_save = QtWidgets.QPushButton(self.tr("Save"))
+        self.btn_load = QtWidgets.QPushButton(self.tr("Load"))
         cfg_btns.addWidget(self.btn_save)
         cfg_btns.addWidget(self.btn_load)
         left_col.addLayout(cfg_btns)
 
         left_col.addStretch()
-        self.status_label = QtWidgets.QLabel("Serwer: zatrzymany")
+        self.status_label = QtWidgets.QLabel(self.tr("Server: stopped"))
+        self.status_label.setWordWrap(True)
         left_col.addWidget(self.status_label)
 
         # Right: details for selected slave (tabs)
         right_col = QtWidgets.QVBoxLayout()
         main_layout.addLayout(right_col, 5)
 
-        self.current_slave_label = QtWidgets.QLabel("Wybrany slave: brak")
+        self.current_slave_label = QtWidgets.QLabel(self.tr("Selected slave: none"))
         right_col.addWidget(self.current_slave_label)
 
         self.tabs = QtWidgets.QTabWidget()
-        self.holding_table = RegistersTable(["Adres", "Wartość (0..65535)"])
-        self.input_table = RegistersTable(["Adres", "Wartość (0..65535)"])
-        self.coils_table = RegistersTable(["Adres", "Wartość (True/False)"])
-        self.descrete_inputs_table = RegistersTable(["Adres", "Wartość (True/False)"])
+        self.holding_table = RegistersTable([self.tr("Address"), self.tr("Value (0..65535)")])
+        self.input_table = RegistersTable([self.tr("Address"), self.tr("Value (0..65535)")])
+        self.coils_table = RegistersTable([self.tr("Address"), self.tr("Value (True/False)")])
+        self.descrete_inputs_table = RegistersTable([self.tr("Address"), self.tr("Value (True/False)")])
         self.tabs.addTab(self.holding_table, "Holding Registers")
         self.tabs.addTab(self.input_table, "Input Registers")
         self.tabs.addTab(self.coils_table, "Coils")
-        self.tabs.addTab(self.descrete_inputs_table, "Descrete Inputs")
+        self.tabs.addTab(self.descrete_inputs_table, "Discrete Inputs")
         right_col.addWidget(self.tabs, 1)
 
-        # bottom controls for selected slave
-        bottom_row = QtWidgets.QHBoxLayout()
-        self.btn_push_now = QtWidgets.QPushButton("Wypchnij do serwera (teraz)")
-        self.btn_pull_now = QtWidgets.QPushButton("Pobierz ze serwera (teraz)")
-        bottom_row.addWidget(self.btn_push_now)
-        bottom_row.addWidget(self.btn_pull_now)
-        bottom_row.addStretch()
-        right_col.addLayout(bottom_row)
+        for tbl in (self.holding_table, self.input_table, self.coils_table, self.descrete_inputs_table):
+            tbl.table.itemChanged.connect(self._mark_dirty)
+
 
         # Connections
         self.btn_add_slave.clicked.connect(self.on_add_slave)
@@ -351,7 +350,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.coils_table.btn_remove.clicked.connect(lambda: self.remove_selected(self.coils_table))
         self.descrete_inputs_table.btn_add.clicked.connect(self.add_descrete_input_row)
         self.descrete_inputs_table.btn_remove.clicked.connect(lambda: self.remove_selected(self.descrete_inputs_table))
-        self.coils_table.btn_remove.clicked.connect(lambda: self.remove_selected(self.coils_table))
 
         self.btn_start.clicked.connect(self.start_server)
         self.btn_stop.clicked.connect(self.stop_server)
@@ -359,8 +357,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_save.clicked.connect(self.save_config)
         self.btn_load.clicked.connect(self.load_config)
 
-        self.btn_push_now.clicked.connect(self.push_to_handler)
-        self.btn_pull_now.clicked.connect(self.pull_from_handler)
 
         # Timers for background sync
         self.sync_timer = QtCore.QTimer(self)
@@ -374,55 +370,62 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh_timer.start()
 
         # Load config if exists
-        print(f"[config] Plik konfiguracji: {self.config_path}")
+        print(f"[config] Config file: {self.config_path}")
         if os.path.exists(self.config_path):
             try:
                 self.load_config_from_path(self.config_path)
-                print(f"[config] Wczytano: {self.config_path}")
-                self.status("Wczytano konfigurację: " + self.config_path)
+                print(f"[config] Loaded: {self.config_path}")
+                self.status(self.tr("Config loaded: ") + self.config_path)
             except Exception:
-                print(f"[config] Nie udało się wczytać: {self.config_path}")
-                self.status("Nie udało się wczytać konfiguracji (użyto domyślnej).")
+                print(f"[config] Failed to load: {self.config_path}")
+                self.status(self.tr("Failed to load config."))
         else:
-            print(f"[config] Brak pliku konfiguracji, zostanie utworzony przy zamknięciu")
+            print(f"[config] No config file found, will be created on exit")
 
     # ---------- Slave list management ----------
     def on_add_slave(self):
         sid = int(self.input_new_slave.value())
-        # ensure unique
         for i in range(self.slave_list.count()):
             if int(self.slave_list.item(i).text()) == sid:
-                QtWidgets.QMessageBox.warning(self, "Uwaga", f"Slave o ID {sid} już istnieje.")
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    self.tr("Warning"),
+                    self.tr("Slave with ID {} already exists.").format(sid),
+                )
                 return
         self.slave_list.addItem(str(sid))
         self.handler.ensure_slave(sid)
-        # select new
         self.slave_list.setCurrentRow(self.slave_list.count() - 1)
+        self._mark_dirty()
 
     def on_remove_slave(self):
         cur = self.slave_list.currentItem()
         if not cur:
             return
         sid = int(cur.text())
-        reply = QtWidgets.QMessageBox.question(self, "Usuń slave", f"Czy usunąć slave {sid} z konfiguracji?")
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            self.tr("Remove slave"),
+            self.tr("Remove slave {} from configuration?").format(sid),
+        )
         if reply == QtWidgets.QMessageBox.Yes:
             row = self.slave_list.currentRow()
             self.slave_list.takeItem(row)
             with self.handler.lock:
                 if sid in self.handler.slaves:
                     del self.handler.slaves[sid]
-            # clear tables if no selection
             if self.slave_list.currentItem() is None:
                 self.clear_tables()
-            self.status(f"Usunięto slave {sid}")
+            self.status(self.tr("Slave {} removed").format(sid))
+            self._mark_dirty()
 
     def on_select_slave(self, cur, prev):
         if cur:
             sid = int(cur.text())
-            self.current_slave_label.setText(f"Wybrany slave: {sid}")
-            self.pull_from_handler()  # load values into tables
+            self.current_slave_label.setText(self.tr("Selected slave: {}").format(sid))
+            self.pull_from_handler()
         else:
-            self.current_slave_label.setText("Wybrany slave: brak")
+            self.current_slave_label.setText(self.tr("Selected slave: none"))
             self.clear_tables()
 
     # ---------- Table helpers ----------
@@ -480,14 +483,16 @@ class MainWindow(QtWidgets.QMainWindow):
         input_regs = self.handler.get_input_list(sid)
         coils = self.handler.get_coils_list(sid)
 
-        def populate(tbl_widget, items, bool_vals=False):
+        def populate(tbl_widget, items):
             tbl = tbl_widget.table
+            tbl.blockSignals(True)
             tbl.setRowCount(0)
             for addr, val in sorted(items.items()):
                 r = tbl.rowCount()
                 tbl.insertRow(r)
                 tbl.setItem(r, 0, QtWidgets.QTableWidgetItem(str(addr)))
                 tbl.setItem(r, 1, QtWidgets.QTableWidgetItem(str(val)))
+            tbl.blockSignals(False)
 
         populate(self.holding_table, holding)
         populate(self.input_table, input_regs)
@@ -498,7 +503,6 @@ class MainWindow(QtWidgets.QMainWindow):
         sid = self.get_selected_slave()
         if sid is None:
             return
-        # holdings
         for r in range(self.holding_table.table.rowCount()):
             a = self.holding_table.table.item(r, 0)
             v = self.holding_table.table.item(r, 1)
@@ -513,7 +517,6 @@ class MainWindow(QtWidgets.QMainWindow):
             except Exception:
                 val = 0
             self.handler.set_holding(sid, addr, val & 0xFFFF)
-        # inputs
         for r in range(self.input_table.table.rowCount()):
             a = self.input_table.table.item(r, 0)
             v = self.input_table.table.item(r, 1)
@@ -528,7 +531,6 @@ class MainWindow(QtWidgets.QMainWindow):
             except Exception:
                 val = 0
             self.handler.set_input(sid, addr, val & 0xFFFF)
-        # coils
         for r in range(self.coils_table.table.rowCount()):
             a = self.coils_table.table.item(r, 0)
             v = self.coils_table.table.item(r, 1)
@@ -544,32 +546,25 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # ---------- Periodic sync tasks ----------
     def periodic_sync_to_handler(self):
-        """Periodically push GUI edits to handler for currently selected slave."""
-        # We simply push current table content (lightweight)
         try:
             self.push_to_handler()
         except Exception:
-            # swallow errors to not spam timer
             pass
 
     def periodic_refresh_from_handler(self):
-        """Periodically read from handler and update visible tables if values changed."""
         sid = self.get_selected_slave()
         if sid is None:
             return
         try:
-            # read lists
             holding = self.handler.get_holding_list(sid)
             input_regs = self.handler.get_input_list(sid)
             coils = self.handler.get_coils_list(sid)
 
             updated = False
 
-            # helper to update a table in-place without breaking user's current edit session too much
             def update_table(tbl_widget, items, fmt=str):
                 nonlocal updated
                 tbl = tbl_widget.table
-                # build mapping addr -> row
                 addr_to_row = {}
                 for r in range(tbl.rowCount()):
                     a_item = tbl.item(r, 0)
@@ -578,65 +573,64 @@ class MainWindow(QtWidgets.QMainWindow):
                             addr_to_row[int(a_item.text())] = r
                         except Exception:
                             pass
-                # update existing rows
                 for addr, val in items.items():
                     s_val = fmt(val)
                     if addr in addr_to_row:
                         row = addr_to_row[addr]
                         val_item = tbl.item(row, 1)
                         if val_item and val_item.text() != s_val:
+                            tbl.blockSignals(True)
                             val_item.setText(s_val)
+                            tbl.blockSignals(False)
                             updated = True
                     else:
-                        # add new row
+                        tbl.blockSignals(True)
                         r = tbl.rowCount()
                         tbl.insertRow(r)
                         tbl.setItem(r, 0, QtWidgets.QTableWidgetItem(str(addr)))
                         tbl.setItem(r, 1, QtWidgets.QTableWidgetItem(s_val))
+                        tbl.blockSignals(False)
                         updated = True
-                # Optionally remove rows that no longer exist? We'll keep them (user might want to keep)
+
             update_table(self.holding_table, holding, fmt=lambda x: str(int(x)))
             update_table(self.input_table, input_regs, fmt=lambda x: str(int(x)))
             update_table(self.coils_table, coils, fmt=lambda x: "True" if bool(x) else "False")
 
             if updated:
-                self.status("Odświeżono wartości z handlera")
+                self.status(self.tr("Values refreshed from handler"))
         except Exception:
             pass
 
     # ---------- Server control ----------
     def start_server(self):
         if self.server_running:
-            self.status("Serwer już działa")
+            self.status(self.tr("Server already running"))
             return
         host = self.input_host.text().strip() or "0.0.0.0"
         port = int(self.input_port.value())
         try:
-            # Try to create server with custom data handler
-            # Note: pyModbusTCP.ModbusServer may accept 'data_handler' or 'data_bank' depending on version.
-            # We'll attempt data_handler first.
             try:
                 self.server = ModbusServer(host=host, port=port, data_hdl=self.handler, no_block=True)
             except TypeError:
-                # fallback to 'data_bank' name
                 self.server = ModbusServer(host=host, port=port, data_bank=self.handler, no_block=True)
             self.server.start()
             self.server_running = True
             self.btn_start.setEnabled(False)
             self.btn_stop.setEnabled(True)
-            self.status(f"Serwer uruchomiony na {host}:{port}")
+            self.status(self.tr("Server running on {}:{}").format(host, port))
         except Exception as e:
             traceback.print_exc()
-            QtWidgets.QMessageBox.critical(self, "Błąd uruchamiania serwera",
-                                           f"Nie udało się uruchomić serwera: {e}\n"
-                                           "Jeśli masz starszą/niższą wersję pyModbusTCP, "
-                                           "sprawdź dokumentację lub podaj wersję biblioteki.")
+            QtWidgets.QMessageBox.critical(
+                self,
+                self.tr("Server start error"),
+                self.tr("Failed to start server: {}\nCheck pyModbusTCP version and documentation.").format(e),
+            )
             self.server = None
             self.server_running = False
 
     def stop_server(self):
         if not self.server_running or not self.server:
-            self.status("Serwer nie działa")
+            self.status(self.tr("Server not running"))
             return
         try:
             self.server.stop()
@@ -646,84 +640,94 @@ class MainWindow(QtWidgets.QMainWindow):
         self.server_running = False
         self.btn_start.setEnabled(True)
         self.btn_stop.setEnabled(False)
-        self.status("Serwer zatrzymany")
+        self.status(self.tr("Server stopped"))
 
     # ---------- Save / Load config ----------
     def save_config(self):
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Zapisz konfigurację", self.config_path, "JSON files (*.json);;All files (*)")
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, self.tr("Save configuration"), self.config_path, "JSON files (*.json);;All files (*)"
+        )
         if not path:
             return
         try:
             data = self.handler.export_all()
-            # export keys as strings for JSON friendliness
-            dumpable = { str(k): v for k, v in data.items() }
+            dumpable = {str(k): v for k, v in data.items()}
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(dumpable, f, indent=2)
-            print(f"[config] Zapisano: {path}")
-            self.status("Zapisano konfigurację: " + path)
+            print(f"[config] Saved: {path}")
+            self._clear_dirty()
+            self.status(self.tr("Config saved: ") + path)
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Błąd zapisu", str(e))
+            QtWidgets.QMessageBox.critical(self, self.tr("Save error"), str(e))
 
     def load_config(self):
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Wczytaj konfigurację", self.config_path, "JSON files (*.json);;All files (*)")
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, self.tr("Load configuration"), self.config_path, "JSON files (*.json);;All files (*)"
+        )
         if not path:
             return
         try:
             self.load_config_from_path(path)
             self.config_path = path
-            print(f"[config] Wczytano: {path}")
-            self.status("Wczytano konfigurację: " + path)
+            print(f"[config] Loaded: {path}")
+            self._clear_dirty()
+            self.status(self.tr("Config loaded: ") + path)
         except Exception as e:
-            QtWidgets.QMessageBox.critical(self, "Błąd wczytywania", str(e))
+            QtWidgets.QMessageBox.critical(self, self.tr("Load error"), str(e))
 
     def load_config_from_path(self, path):
         with open(path, "r", encoding="utf-8") as f:
             raw = json.load(f)
-        # keys may be strings
         normalized = {}
         for k, v in raw.items():
             normalized[int(k)] = v
         self.handler.import_all(normalized)
-        # refresh slave list UI
         self.slave_list.clear()
         for sid in sorted(normalized.keys()):
             self.slave_list.addItem(str(sid))
-        # select first
         if self.slave_list.count() > 0:
             self.slave_list.setCurrentRow(0)
         else:
             self.clear_tables()
+        self._clear_dirty()
 
     # ---------- UI helpers ----------
+    def _mark_dirty(self):
+        self._dirty = True
+
+    def _clear_dirty(self):
+        self._dirty = False
+
     def status(self, text: str):
         self.status_label.setText(text)
 
     def closeEvent(self, event):
-        reply = QtWidgets.QMessageBox(self)
-        reply.setWindowTitle("Zamknij symulator")
-        reply.setText(f"Zapisać zmiany do pliku konfiguracji?\n\n{self.config_path}")
-        btn_save = reply.addButton("Zapisz i zamknij", QtWidgets.QMessageBox.AcceptRole)
-        btn_discard = reply.addButton("Porzuć zmiany", QtWidgets.QMessageBox.DestructiveRole)
-        reply.addButton("Anuluj", QtWidgets.QMessageBox.RejectRole)
-        reply.exec()
+        if self._dirty:
+            reply = QtWidgets.QMessageBox(self)
+            reply.setWindowTitle(self.tr("Close simulator"))
+            reply.setText(self.tr("Save changes to config file?\n\n{}").format(self.config_path))
+            btn_save = reply.addButton(self.tr("Save and close"), QtWidgets.QMessageBox.AcceptRole)
+            btn_discard = reply.addButton(self.tr("Discard changes"), QtWidgets.QMessageBox.DestructiveRole)
+            reply.addButton(self.tr("Cancel"), QtWidgets.QMessageBox.RejectRole)
+            reply.exec()
 
-        clicked = reply.clickedButton()
-        if clicked == btn_save:
-            try:
-                data = self.handler.export_all()
-                dumpable = {str(k): v for k, v in data.items()}
-                with open(self.config_path, "w", encoding="utf-8") as f:
-                    json.dump(dumpable, f, indent=2)
-                print(f"[config] Zapisano: {self.config_path}")
-            except Exception as e:
-                QtWidgets.QMessageBox.critical(self, "Błąd zapisu", str(e))
+            clicked = reply.clickedButton()
+            if clicked == btn_save:
+                try:
+                    data = self.handler.export_all()
+                    dumpable = {str(k): v for k, v in data.items()}
+                    with open(self.config_path, "w", encoding="utf-8") as f:
+                        json.dump(dumpable, f, indent=2)
+                    print(f"[config] Saved: {self.config_path}")
+                except Exception as e:
+                    QtWidgets.QMessageBox.critical(self, self.tr("Save error"), str(e))
+                    event.ignore()
+                    return
+            elif clicked == btn_discard:
+                print(f"[config] Changes discarded, file unchanged: {self.config_path}")
+            else:
                 event.ignore()
                 return
-        elif clicked == btn_discard:
-            print(f"[config] Porzucono zmiany, plik niezmieniony: {self.config_path}")
-        else:
-            event.ignore()
-            return
 
         try:
             if self.server_running and self.server:
@@ -738,13 +742,13 @@ def main():
     parser.add_argument(
         "--config",
         default=None,
-        metavar="PLIK",
-        help="Ścieżka do pliku konfiguracji JSON (domyślnie: config.json w katalogu skryptu)",
+        metavar="FILE",
+        help="Path to JSON config file (default: config.json in script directory)",
     )
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Włącz logowanie każdego zapytania Modbus na terminal",
+        help="Enable logging of every Modbus request to terminal",
     )
     args = parser.parse_args()
 
@@ -752,17 +756,40 @@ def main():
     config_path = args.config if args.config else os.path.join(script_dir, "config.json")
 
     if args.debug:
-        print("[debug] Tryb debugowania włączony — każde zapytanie Modbus będzie logowane")
+        print("[debug] Debug mode enabled — every Modbus request will be logged")
 
     app = QtWidgets.QApplication(sys.argv)
+    app.setApplicationName("Modbus Devices Simulator")
+
+    # Load translation based on system locale
+    # On macOS, QLocale::system() may return "C" when launched from terminal without LANG set.
+    # Fall back to reading AppleLanguages from user defaults.
+    locale = QtCore.QLocale.system().name()
+    if locale == "C" and sys.platform == "darwin":
+        try:
+            import subprocess, re
+            out = subprocess.check_output(["defaults", "read", "-g", "AppleLanguages"], text=True)
+            match = re.search(r'"?([\w-]+)"?', out)
+            if match:
+                locale = match.group(1).replace("-", "_")
+        except Exception:
+            pass
+    translator = QtCore.QTranslator(app)
+    translations_dir = os.path.join(script_dir, "translations")
+    if translator.load(locale, translations_dir):
+        app.installTranslator(translator)
+        print(f"[i18n] Loaded translation: {locale}")
+    else:
+        print(f"[i18n] No translation for {locale}, using English")
+
     if sys.platform == "darwin":
         app.setStyle("macos")
 
-    icon_path = os.path.join(script_dir, "modbus-logo-png.png")
+    icon_path = os.path.join(script_dir, "modbus-logo.png")
     if os.path.exists(icon_path):
         app.setWindowIcon(QtGui.QIcon(icon_path))
     else:
-        print(f"[warn] Brak pliku ikony: {icon_path}")
+        print(f"[warn] Icon file not found: {icon_path}")
 
     w = MainWindow(config_path=config_path, debug=args.debug)
     w.show()

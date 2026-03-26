@@ -3,4 +3,4 @@
   *.pyc
   config.json
   presets/
-  
+  translations/*.qm

@@ -11,8 +11,6 @@ GUI simulator Modbus TCP z obsługą wielu slave'ów jednocześnie. Umożliwia e
 ## Pierwsze uruchomienie
 
 ```bash
-cd ~/projects/modbus/modbus-devices-simulator
-
 # Utwórz wirtualne środowisko
 python3 -m venv .venv
 
@@ -23,27 +21,36 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## Tłumaczenia
+
+Język UI dobierany jest automatycznie na podstawie locale systemu. Skompilowany plik tłumaczenia dla polskiego jest dołączony. Aby skompilować ponownie po edycji `translations/pl_PL.ts`:
+
+```bash
+pyside6-lrelease translations/pl_PL.ts -qm translations/pl_PL.qm
+```
+
+Aby dodać nowy język, utwórz `translations/<locale>.ts` i skompiluj analogicznie.
+
 ## Uruchamianie
 
 ```bash
-cd ~/projects/modbus/modbus-devices-simulator
 source .venv/bin/activate
 
 # Domyślna konfiguracja (config.json w katalogu skryptu)
 python modbus_gui.py
 
-# Alternatywna konfiguracja (preset z katalogu devices)
-python modbus_gui.py --config ../devices/diy-driveway-controller/simulator-preset.json
+# Alternatywna konfiguracja (preset)
+python modbus_gui.py --config sciezka/do/presetu.json
 
 # Tryb debugowania — każde zapytanie Modbus logowane na terminal
 python modbus_gui.py --debug
-python modbus_gui.py --config ../devices/diy-driveway-controller/simulator-preset.json --debug
+python modbus_gui.py --config sciezka/do/presetu.json --debug
 ```
 
 Przy starcie w terminalu pojawi się informacja, który plik konfiguracji jest używany:
 ```
-[config] Plik konfiguracji: /path/to/config.json
-[config] Wczytano: /path/to/config.json
+[config] Config file: /path/to/config.json
+[config] Loaded: /path/to/config.json
 ```
 
 Przykładowy output w trybie `--debug`:
